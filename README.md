@@ -1,70 +1,104 @@
-# Getting Started with Create React App
+# RichTreeViewPlus Test Application
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive test application for the RichTreeViewPlus component that demonstrates lazy loading, caching, error handling, and performance characteristics.
 
-## Available Scripts
+## Setup Instructions
 
-In the project directory, you can run:
+1. **Clone or create the project:**
 
-### `npm start`
+   ```bash
+   npx create-react-app rich-tree-view-plus-test --template typescript
+   cd rich-tree-view-plus-test
+   ```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+2. **Install dependencies:**
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+   ```bash
+   npm install @mui/material @mui/icons-material @mui/x-tree-view @emotion/react @emotion/styled
+   ```
 
-### `npm test`
+3. **Copy the RichTreeViewPlus source files** into `src/RichTreeViewPlus/` directory with the modular structure provided earlier.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+4. **Replace the default files** with the test application files provided above.
 
-### `npm run build`
+5. **Start the application:**
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+   ```bash
+   npm start
+   ```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Test Scenarios
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 📁 File System Test
 
-### `npm run eject`
+- **Purpose:** Test basic lazy loading functionality
+- **Features:** Nested folder structures, realistic file counts
+- **Tests:** Expansion, selection, navigation
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 🏢 Company Directory Test  
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- **Purpose:** Test with different data structures and sizes
+- **Features:** Small/Medium/Large company data sets
+- **Tests:** Scalability, department hierarchies
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### ⚡ Performance Test
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+- **Purpose:** Measure component performance with large datasets
+- **Features:** 100 categories with 10-60 items each
+- **Tests:** Load times, rendering performance, memory usage
 
-## Learn More
+### ❌ Error Handling Test
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- **Purpose:** Test error scenarios and recovery
+- **Features:** Network timeouts, server errors, permission errors
+- **Tests:** Error display, retry mechanisms, graceful degradation
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 💾 Cache Test
 
-### Code Splitting
+- **Purpose:** Test caching behavior and efficiency
+- **Features:** 30-second TTL, cache hit/miss tracking
+- **Tests:** Cache efficiency, memory usage, TTL expiration
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Project Structure
 
-### Analyzing the Bundle Size
+```text
+src/
+├── App.tsx                     # Main application with tabs
+├── index.tsx                   # React entry point
+├── components/
+│   ├── FileSystemTest.tsx      # File system test scenario
+│   ├── CompanyDirectoryTest.tsx # Company directory test
+│   ├── PerformanceTest.tsx     # Performance testing
+│   ├── ErrorHandlingTest.tsx   # Error handling tests
+│   ├── CacheTest.tsx          # Cache behavior tests
+│   └── DebugPanel.tsx         # Debug information panel
+└── RichTreeViewPlus/          # Your RichTreeViewPlus module
+    ├── RichTreeViewPlus.tsx
+    ├── types.ts
+    ├── index.ts
+    ├── components/
+    ├── hooks/
+    ├── utils/
+    └── cache/
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Key Features Tested
 
-### Making a Progressive Web App
+✅ **Lazy Loading:** Children load on demand
+✅ **Caching:** Built-in cache with TTL
+✅ **Error Handling:** Graceful error recovery
+✅ **Performance:** Large dataset handling
+✅ **State Management:** Expansion and selection
+✅ **Theme Integration:** MUI theme compatibility
+✅ **Multi-select:** Checkbox and standard selection
+✅ **Debug Tools:** Real-time monitoring
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Usage Tips
 
-### Advanced Configuration
+1. **Open Browser DevTools** to see console logs and network activity
+2. **Use the Debug Panels** to monitor component state changes
+3. **Test Error Scenarios** by enabling different error modes
+4. **Monitor Performance** with the built-in metrics tracking
+5. **Experiment with Settings** using the global configuration panel
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This test application provides comprehensive coverage of all RichTreeViewPlus features and edge cases, allowing you to verify the component works correctly in various scenarios.
