@@ -13,8 +13,8 @@
  * - ItemIcon: Icon container for tree items
  * - ItemLabel: Label container for tree items
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 

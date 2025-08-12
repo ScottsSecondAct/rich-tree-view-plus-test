@@ -12,8 +12,8 @@
  * - Tree flattening and parent relationship utilities
  * - State management for lazy loading operations
  * 
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 
@@ -114,53 +114,95 @@ export const enhanceItemsWithStates = (
   { loadingItems, errorItems }: LazyLoadingState,
   dataSource?: DataSource
 ): EnhancedTreeViewItem[] => {
-  return items.map(item => {
-    const childrenEnhanced = item.children && item.children.length > 0
-      ? enhanceItemsWithStates(item.children, { loadingItems, errorItems }, dataSource)
-      : item.children;
+  let hasChanges = false;
 
-    const childrenWereChanged = childrenEnhanced !== item.children;
-
-    if (!dataSource) {
-      return childrenWereChanged ? { ...item, children: childrenEnhanced } as EnhancedTreeViewItem : item as EnhancedTreeViewItem;
-    }
+  const enhancedItems = items.map((item) => {
+    if (!dataSource) return item as EnhancedTreeViewItem;
 
     const childrenCount = dataSource.getChildrenCount(item);
     const isLoading = loadingItems.has(item.id);
     const error = errorItems.get(item.id);
-    const needsPlaceholder = childrenCount !== 0 && (!item.children || item.children.length === 0);
 
-    const needsEnhancement = isLoading || error || needsPlaceholder || childrenWereChanged;
+    // Extract the previous computed props (if any)
+    const prevItemProps = (item as EnhancedTreeViewItem).slotProps?.item ?? {};
 
-    if (!needsEnhancement) {
+    let children: EnhancedTreeViewItem[] | undefined = item.children as EnhancedTreeViewItem[] | undefined;
+    let childrenChanged = false;
+
+    if (isLoading) {
+      children = [
+        {
+          id: `${item.id}-loading`,
+          label: "Loading...",
+          slotProps: { item: { isLoading: true } },
+        },
+      ];
+      childrenChanged = true;
+    } else if (error) {
+      children = [
+        {
+          id: `${item.id}-error`,
+          label: "Error loading children",
+          slotProps: { item: { error } },
+        },
+      ];
+      childrenChanged = true;
+    } else if (childrenCount !== 0 && (!item.children || item.children.length === 0)) {
+      children = [
+        {
+          id: `${item.id}-placeholder`,
+          label: " ",
+          slotProps: { item: {} },
+        },
+      ];
+      childrenChanged = true;
+    } else if (item.children && item.children.length > 0) {
+      const newChildren = enhanceItemsWithStates(
+        item.children,
+        { loadingItems, errorItems },
+        dataSource
+      );
+      if (newChildren !== item.children) {
+        children = newChildren;
+        childrenChanged = true;
+      }
+    }
+
+    const newItemProps = {
+      isLoading,
+      error,
+      hasChildren: childrenCount !== 0,
+      childrenCount,
+    };
+
+    const itemPropsChanged =
+      prevItemProps.isLoading !== newItemProps.isLoading ||
+      prevItemProps.error !== newItemProps.error ||
+      prevItemProps.hasChildren !== newItemProps.hasChildren ||
+      prevItemProps.childrenCount !== newItemProps.childrenCount;
+
+    if (!childrenChanged && !itemPropsChanged && item.childrenCount === childrenCount) {
+      // No changes at all – reuse original reference
       return item as EnhancedTreeViewItem;
     }
 
-    const enhanced: EnhancedTreeViewItem = {
+    // Return a new enhanced item only when something actually changed
+    hasChanges = true;
+    return {
       ...item,
-      children: childrenEnhanced,
+      childrenCount,
+      children,
       slotProps: {
         ...item.slotProps,
         item: {
-          ...(item.slotProps?.item ?? {}),
-          isLoading,
-          error,
-          hasChildren: childrenCount !== 0,
-          childrenCount,
+          ...item.slotProps?.item,
+          ...newItemProps,
         },
       },
-    };
-
-    if (isLoading) {
-      enhanced.children = [{ id: `${item.id}-loading`, label: 'Loading...', slotProps: { item: { isLoading: true } } }];
-    } else if (error) {
-      enhanced.children = [{ id: `${item.id}-error`, label: 'Error loading children', slotProps: { item: { error } } }];
-    } else if (needsPlaceholder) {
-      enhanced.children = [{ id: `${item.id}-placeholder`, label: ' ', slotProps: { item: { isPlaceholder: true } } }];
-    }
-
-    return enhanced;
+    } as EnhancedTreeViewItem;
   });
+
+  return hasChanges ? enhancedItems : (items as EnhancedTreeViewItem[]); // Return original array reference if no items changed
 };
 
 /**

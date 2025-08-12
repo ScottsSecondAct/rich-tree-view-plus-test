@@ -12,8 +12,8 @@
  * - Children count display for items with children
  * - Responsive design with proper spacing and typography
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 

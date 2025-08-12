@@ -5,8 +5,8 @@
  * the RichTreeViewPlus library. These types define the structure for tree view items,
  * data sources, caching mechanisms, and lazy loading states.
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 

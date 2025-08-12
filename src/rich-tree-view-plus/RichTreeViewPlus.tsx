@@ -13,9 +13,9 @@
  * - Automatic expansion handling for lazy loading
  * - Support for both single and multi-selection modes
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
- * @license MIT
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
+ * @license MIT – see LICENSE in the repository root for full text
  */
 
 import React, { useEffect, useCallback, useMemo, forwardRef, useRef } from "react";
@@ -46,6 +46,8 @@ export interface RichTreeViewPlusProps
   dataSource?: DataSource;
   /** Cache implementation for storing loaded data */
   dataSourceCache?: DataSourceCache;
+  /** time in ms after which already-loaded children are considered stale */
+  staleTime?: number;
 }
 
 /**
@@ -80,6 +82,7 @@ export const RichTreeViewPlus = forwardRef<
     onExpandedItemsChange,
     expandedItems: controlledExpandedItems,
     defaultExpandedItems = [],
+    staleTime,
     ...otherProps
   } = props;
 
@@ -108,23 +111,35 @@ export const RichTreeViewPlus = forwardRef<
     dataSource,
     dataSourceCache,
     initialItems: items,
+    staleTime,
   });
 
-  /**
-   * Initialize items from data source if no initial items provided
-   *
-   * This effect runs when the component mounts or when the data source changes.
-   * It automatically loads the initial tree data if no items are provided.
-   */
+  const didInitialLoadRef = useRef(false);
+
+  // ---------------------------------------------------------------------------
+  // Initial Data Load
+  // This effect performs the first load against the provided DataSource. It
+  // executes a single time per unique dataSource instance and sets the
+  // didInitialLoadRef flag so the same data isn't fetched twice.
+  // ---------------------------------------------------------------------------
+
   useEffect(() => {
     const currentDataSource = dataSourceRef.current;
-    
-    if (currentDataSource && internalItems.length === 0) {
+
+    if (!currentDataSource) return;
+
+    // Reset the flag if the dataSource object identity changes
+    if (dataSource !== currentDataSource) {
+      didInitialLoadRef.current = false;
+    }
+
+    if (!didInitialLoadRef.current) {
+      didInitialLoadRef.current = true;
       loadItems().catch((error) => {
         console.error("RichTreeViewPlus: Failed to load initial items:", error);
       });
     }
-  }, [dataSource, internalItems.length, loadItems]);
+  }, [dataSource, loadItems]);
 
   /**
    * Enhanced expansion change handler
@@ -146,16 +161,16 @@ export const RichTreeViewPlus = forwardRef<
       }
 
       // Always handle lazy loading when items are expanded, regardless of control mode
-      if (dataSourceRef.current) {
+      if (!isControlledExpansion && dataSourceRef.current) {
         // Get the previous expanded items to determine which ones are newly expanded
-        const previousExpanded = controlledExpandedItems || [];
+        const previousExpanded: string[] = controlledExpandedItems ?? [];
         const newlyExpanded = itemIds.filter(id => !previousExpanded.includes(id));
         
-        console.log('RichTreeViewPlus: newlyExpanded items:', newlyExpanded);
+        console.log('RichTreeViewPlus: newlyExpanded items (uncontrolled):', newlyExpanded);
         
         // Handle lazy loading for newly expanded items
         newlyExpanded.forEach((itemId) => {
-          console.log('RichTreeViewPlus: calling handleItemExpansion for:', itemId);
+          console.log('RichTreeViewPlus: calling handleItemExpansion for (uncontrolled):', itemId);
           handleItemExpansion(itemId, internalItems);
         });
       }
@@ -165,8 +180,36 @@ export const RichTreeViewPlus = forwardRef<
       controlledExpandedItems,
       internalItems,
       handleItemExpansion,
+      isControlledExpansion,
     ]
   );
+
+  // ---------------------------------------------------------------------------
+  // Handle programmatic expansion state changes (controlled mode)
+  //
+  // When the parent component controls the `expandedItems` prop this effect
+  // detects which items have become newly expanded and triggers lazy-loading
+  // for their children on demand.
+  // ---------------------------------------------------------------------------
+  const prevControlledExpandedRef = useRef<string[]>(controlledExpandedItems || []);
+
+  useEffect(() => {
+    if (!controlledExpandedItems) return; // Only relevant in controlled mode
+
+    const previous = prevControlledExpandedRef.current;
+    const newlyExpanded = controlledExpandedItems.filter(
+      (id) => !previous.includes(id)
+    );
+
+    if (newlyExpanded.length > 0) {
+      newlyExpanded.forEach((itemId) => {
+        handleItemExpansion(itemId, internalItems);
+      });
+    }
+
+    // Update ref for next comparison
+    prevControlledExpandedRef.current = controlledExpandedItems;
+  }, [controlledExpandedItems, internalItems, handleItemExpansion]);
 
   /**
    * Enhance items with loading/error states and lazy loading placeholders

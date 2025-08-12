@@ -12,8 +12,8 @@
  * - Loading and error state management
  * - Recursive tree structure updates
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 
@@ -34,6 +34,8 @@ export interface UseLazyLoadingProps {
   dataSourceCache?: DataSourceCache;
   /** Initial tree items to start with */
   initialItems?: TreeViewItem[];
+  /** Time (ms) after which previously fetched children are considered stale */
+  staleTime?: number; // default 30s
 }
 
 /**
@@ -85,6 +87,7 @@ export const useLazyLoading = ({
   dataSource,
   dataSourceCache,
   initialItems = [],
+  staleTime = 30_000,
 }: UseLazyLoadingProps): UseLazyLoadingResult => {
   // State for managing tree items
   const [items, setItems] = useState<TreeViewItem[]>(initialItems);
@@ -98,6 +101,7 @@ export const useLazyLoading = ({
   // Use refs to store stable references to avoid recreation
   const dataSourceRef = useRef(dataSource);
   const cacheRef = useRef<DataSourceCache>();
+  const fetchedTimesRef = useRef<Map<string, number>>(new Map());
 
   // Update refs when props change
   dataSourceRef.current = dataSource;
@@ -186,6 +190,9 @@ export const useLazyLoading = ({
       // Cache the results
       currentCache?.set(cacheKey, fetchedItems);
 
+      // Record fetch time
+      fetchedTimesRef.current.set(parentId || 'root', Date.now());
+
       // Update state based on whether we're loading root or children
       if (parentId) {
         updateItemChildren(parentId, fetchedItems);
@@ -253,8 +260,15 @@ export const useLazyLoading = ({
       const childrenCount = currentDataSource.getChildrenCount(item);
       console.log('useLazyLoading: Found item:', { itemId, childrenCount, hasChildren: !!item.children, childrenLength: item.children?.length });
       
-      // Load children if item has children count but no children loaded yet
-      if (childrenCount !== 0 && (!item.children || item.children.length === 0)) {
+      const lastFetched = fetchedTimesRef.current.get(itemId);
+      const isStale = !lastFetched || Date.now() - lastFetched > staleTime;
+
+      // Need to load if no children yet OR data considered stale
+      if (childrenCount !== 0 && (isStale || !item.children || item.children.length === 0)) {
+        // Remove cached entry if stale so cache miss triggers fresh fetch
+        if (isStale) {
+          cacheRef.current?.delete?.(`items-${itemId}`);
+        }
         console.log('useLazyLoading: Loading children for item:', itemId);
         loadItems(itemId).catch((error) => {
           console.error(`Failed to load children for item ${itemId}:`, error);
@@ -265,7 +279,7 @@ export const useLazyLoading = ({
     } else {
       console.log('useLazyLoading: Item not found:', itemId);
     }
-  }, [loadItems]);
+  }, [loadItems, staleTime]);
 
   return {
     items,

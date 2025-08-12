@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   Paper,
   Typography,
@@ -31,6 +31,16 @@ const PerformanceTest: React.FC<PerformanceTestProps> = ({ settings }) => {
   const [isRunningTest, setIsRunningTest] = useState(false);
   const [testProgress, setTestProgress] = useState(0);
   const [requestLog, setRequestLog] = useState<string[]>([]);
+  const [runId, setRunId] = useState(0);
+  const setRequestLogRef = useRef(setRequestLog);
+  setRequestLogRef.current = setRequestLog;
+
+  const logRequest = useCallback((message: string) => {
+    setRequestLogRef.current((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()}: ${message}`,
+    ]);
+  }, []);
 
   const startTimeRef = useRef<number>(0);
 
@@ -47,10 +57,11 @@ const PerformanceTest: React.FC<PerformanceTestProps> = ({ settings }) => {
     ]);
   }, []);
 
-  // High-performance data source with large datasets
-  const performanceDataSource: DataSource = {
+  // High-performance data source with large datasets (memoized to keep reference stable)
+  const performanceDataSource: DataSource = useMemo((): DataSource => ({
     getTreeItems: async ({ parentId }) => {
       startTimeRef.current = performance.now();
+      logRequest(`getTreeItems(${parentId ?? 'root'}) start`);
 
       // Simulate varying load times based on dataset size
       const delay = parentId
@@ -58,6 +69,7 @@ const PerformanceTest: React.FC<PerformanceTestProps> = ({ settings }) => {
         : 300 + Math.random() * 500;
       await new Promise((resolve) => setTimeout(resolve, delay));
 
+      let result;
       if (!parentId) {
         const rootItems = Array.from({ length: 100 }, (_, i) => ({
           id: `category-${i}`,
@@ -66,33 +78,39 @@ const PerformanceTest: React.FC<PerformanceTestProps> = ({ settings }) => {
         }));
 
         addMetric("Load Root Items", rootItems.length);
-        return rootItems;
+        result = rootItems;
+      } else {
+        // Extract category number from parentId
+        const categoryNum = parseInt(parentId.split("-")[1]);
+        const itemCount = Math.floor(Math.random() * 50) + 10;
+
+        const childItems = Array.from({ length: itemCount }, (_, i) => {
+          const hasChildren = Math.random() > 0.7; // 30% chance of having children
+          return {
+            id: `${parentId}-item-${i}`,
+            label: `${hasChildren ? "📁" : "📄"} Item ${categoryNum}-${i + 1}`,
+            childrenCount: hasChildren ? Math.floor(Math.random() * 20) + 1 : 0,
+          };
+        });
+
+        addMetric(`Load Children for ${parentId}`, childItems.length);
+        result = childItems;
       }
 
-      // Extract category number from parentId
-      const categoryNum = parseInt(parentId.split("-")[1]);
-      const itemCount = Math.floor(Math.random() * 50) + 10;
-
-      const childItems = Array.from({ length: itemCount }, (_, i) => {
-        const hasChildren = Math.random() > 0.7; // 30% chance of having children
-        return {
-          id: `${parentId}-item-${i}`,
-          label: `${hasChildren ? "📁" : "📄"} Item ${categoryNum}-${i + 1}`,
-          childrenCount: hasChildren ? Math.floor(Math.random() * 20) + 1 : 0,
-        };
-      });
-
-      addMetric(`Load Children for ${parentId}`, childItems.length);
-      return childItems;
+      logRequest(`getTreeItems(${parentId ?? 'root'}) -> returned ${result.length}`);
+      return result;
     },
 
     getChildrenCount: (item) => item.childrenCount || 0,
-  };
+  }), [addMetric, logRequest, runId]);
 
   const runPerformanceTest = async () => {
+    // Start a new run: increment runId so the data source (and tree) remounts
+    setRunId((prev) => prev + 1);
     setIsRunningTest(true);
     setTestProgress(0);
     setMetrics([]);
+    setRequestLog([]);
 
     try {
       // Test 1: Expand first 10 categories
@@ -180,15 +198,22 @@ const PerformanceTest: React.FC<PerformanceTestProps> = ({ settings }) => {
               }}
             >
               <RichTreeViewPlus
+                key={runId}
                 dataSource={performanceDataSource}
                 multiSelect={settings.multiSelect}
                 checkboxSelection={settings.checkboxSelection}
                 expandedItems={expandedItems}
                 onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
                 selectedItems={selectedItems}
-                onSelectedItemsChange={(_, itemIds) =>
-                  setSelectedItems(itemIds as string[])
-                }
+                onSelectedItemsChange={(_, itemIds) => {
+                  if (Array.isArray(itemIds)) {
+                    setSelectedItems(itemIds);
+                  } else if (typeof itemIds === 'string') {
+                    setSelectedItems([itemIds]);
+                  } else {
+                    setSelectedItems([]);
+                  }
+                }}
                 sx={{ p: 2 }}
               />
             </Box>

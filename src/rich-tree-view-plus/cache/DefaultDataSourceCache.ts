@@ -13,8 +13,8 @@
  * - Cache size management and cleanup utilities
  * - Thread-safe operations for concurrent access
  *
- * @author RichTreeViewPlus Team
- * @version 1.0.0
+ * @author Scott Davis
+ * @version 1.1.0 - 2025-08-11
  * @license MIT
  */
 
@@ -74,7 +74,14 @@ export class DefaultDataSourceCache implements DataSourceCache {
    * @returns The cached value or null if not found/expired
    */
   get(key: string) {
+    // Debugging log
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Cache] get', key);
+    }
     const cached = this.cache.get(key);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Cache]', cached ? 'HIT' : 'MISS', key);
+    }
     if (!cached) return null;
 
     // Check if entry has expired
@@ -97,6 +104,9 @@ export class DefaultDataSourceCache implements DataSourceCache {
    * @param ttl - Optional time-to-live in milliseconds
    */
   set(key: string, value: any, ttl?: number) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Cache] set', key, 'ttl', ttl ?? this.defaultTtl);
+    }
     this.cache.set(key, {
       value,
       timestamp: Date.now(),
@@ -135,6 +145,11 @@ export class DefaultDataSourceCache implements DataSourceCache {
    */
   has(key: string) {
     const cached = this.cache.get(key);
+    if (cached) {
+      console.log('[Cache] HIT', key);
+    } else {
+      console.log('[Cache] MISS', key);
+    }
     if (!cached) return false;
 
     // Check if entry has expired

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import {
   Paper,
   Typography,
@@ -38,76 +38,98 @@ const CacheTest: React.FC<CacheTestProps> = ({ settings }) => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [cacheStats, setCacheStats] = useState<CacheStats[]>([]);
   const [requestCount, setRequestCount] = useState(0);
+  const [treeKey, setTreeKey] = useState(0); // force remount to test cache hits
 
   // Custom cache with monitoring
   const cacheRef = useRef(new DefaultDataSourceCache(30000)); // 30 second TTL for testing
   const requestStatsRef = useRef<Map<string, CacheStats>>(new Map());
+  const originalGetRef = useRef<(key: string) => any>();
 
-  const updateCacheStats = (key: string, isHit: boolean) => {
-    const stats = requestStatsRef.current.get(key) || {
+  const updateCacheStats = useCallback((key: string, isHit: boolean) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[updateCacheStats]', key, isHit ? 'HIT' : 'MISS');
+    }
+    const prev = requestStatsRef.current.get(key);
+    const newStats: CacheStats = {
       key,
-      hits: 0,
-      misses: 0,
+      hits: (prev?.hits || 0) + (isHit ? 1 : 0),
+      misses: (prev?.misses || 0) + (isHit ? 0 : 1),
       lastAccess: new Date(),
     };
 
-    if (isHit) {
-      stats.hits++;
-    } else {
-      stats.misses++;
-    }
-    stats.lastAccess = new Date();
-
-    requestStatsRef.current.set(key, stats);
+    requestStatsRef.current.set(key, newStats);
     setCacheStats(Array.from(requestStatsRef.current.values()));
-  };
+  }, []);
 
-  const cacheTestDataSource: DataSource = {
-    getTreeItems: async ({ parentId }) => {
-      const cacheKey = `items-${parentId || "root"}`;
-      const cached = cacheRef.current.get(cacheKey);
+  // Patch cache get once to track hits/misses even when data source is not called
+  React.useEffect(() => {
+    if (!originalGetRef.current) {
+      originalGetRef.current = cacheRef.current.get.bind(cacheRef.current);
 
-      setRequestCount((prev) => prev + 1);
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore – overriding method for instrumentation
+      cacheRef.current.get = (key: string) => {
+        const val = originalGetRef.current!(key);
+        updateCacheStats(key, !!val);
+        return val;
+      };
+    }
+  }, [updateCacheStats]);
 
-      if (cached) {
-        updateCacheStats(cacheKey, true);
-        console.log(`Cache HIT for ${cacheKey}`);
-        return cached;
-      }
+  const cacheTestDataSourceRef = useRef<DataSource>();
 
-      updateCacheStats(cacheKey, false);
-      console.log(`Cache MISS for ${cacheKey} - fetching from server`);
+  if (!cacheTestDataSourceRef.current) {
+    cacheTestDataSourceRef.current = {
+      async getTreeItems({ parentId }) {
+        const cacheKey = `items-${parentId || "root"}`;
+        const cached = cacheRef.current.get(cacheKey);
 
-      // Simulate server request
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[DataSource getTreeItems]', cacheKey, 'cached?', !!cached);
+        }
 
-      let result;
-      if (!parentId) {
-        result = [
-          { id: "cache-1", label: "📁 Cached Folder 1", childrenCount: 3 },
-          { id: "cache-2", label: "📁 Cached Folder 2", childrenCount: 4 },
-          { id: "cache-3", label: "📁 Cached Folder 3", childrenCount: 2 },
-          {
-            id: "cache-file.txt",
-            label: "📄 cached-file.txt",
+        setRequestCount((prev) => prev + 1);
+
+        if (cached) {
+          console.log(`Cache HIT for ${cacheKey}`);
+          return cached;
+        }
+
+        console.log(`Cache MISS for ${cacheKey} - fetching from server`);
+
+        // Simulate server request
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        let result;
+        if (!parentId) {
+          result = [
+            { id: "cache-1", label: "📁 Cached Folder 1", childrenCount: 3 },
+            { id: "cache-2", label: "📁 Cached Folder 2", childrenCount: 4 },
+            { id: "cache-3", label: "📁 Cached Folder 3", childrenCount: 2 },
+            {
+              id: "cache-file.txt",
+              label: "📄 cached-file.txt",
+              childrenCount: 0,
+            },
+          ];
+        } else {
+          const itemCount = Math.floor(Math.random() * 5) + 2;
+          result = Array.from({ length: itemCount }, (_, i) => ({
+            id: `${parentId}-item-${i}`,
+            label: `📄 ${parentId} Item ${i + 1}`,
             childrenCount: 0,
-          },
-        ];
-      } else {
-        const itemCount = Math.floor(Math.random() * 5) + 2;
-        result = Array.from({ length: itemCount }, (_, i) => ({
-          id: `${parentId}-item-${i}`,
-          label: `📄 ${parentId} Item ${i + 1}`,
-          childrenCount: 0,
-        }));
-      }
+          }));
+        }
 
-      cacheRef.current.set(cacheKey, result);
-      return result;
-    },
+        cacheRef.current.set(cacheKey, result);
+        return result;
+      },
 
-    getChildrenCount: (item) => item.childrenCount || 0,
-  };
+      getChildrenCount: (item) => item.childrenCount || 0,
+    };
+  }
+
+  const cacheTestDataSource = cacheTestDataSourceRef.current;
 
   const clearCache = () => {
     cacheRef.current.clear();
@@ -163,6 +185,9 @@ const CacheTest: React.FC<CacheTestProps> = ({ settings }) => {
               <Button variant="outlined" onClick={clearCache}>
                 Clear Cache
               </Button>
+              <Button variant="text" onClick={() => setTreeKey((k) => k + 1)}>
+                Remount Tree
+              </Button>
               <Chip label={`${requestCount} total requests`} color="primary" />
               <Chip label={`${hitRate.toFixed(1)}% hit rate`} color="success" />
             </Box>
@@ -176,6 +201,8 @@ const CacheTest: React.FC<CacheTestProps> = ({ settings }) => {
               }}
             >
               <RichTreeViewPlus
+                staleTime={30000}
+                key={treeKey}
                 dataSource={cacheTestDataSource}
                 dataSourceCache={cacheRef.current}
                 multiSelect={settings.multiSelect}
